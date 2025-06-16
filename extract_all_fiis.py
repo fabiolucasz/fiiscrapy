@@ -6,8 +6,8 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
-liquidez_minima = 1_500_000
-pvp = 0.85
+liquidez_minima = 2_000_000
+pvp = 0.75
 
 def get_fiis():
     url = "https://www.fundamentus.com.br/fii_resultado.php"
@@ -25,7 +25,7 @@ def filtrar_fiis(liquidez_minima, pvp):
     segmentos_permitidos = ["Logística", "Shoppings", "Híbrido", "Lajes Corporativas"]
     df = df[df["Liquidez"] >= liquidez_minima]
     df = df[df["P/VP"] >= pvp]
-    df = df[df["Segmento"].isin(segmentos_permitidos)]
+    #df = df[df["Segmento"].isin(segmentos_permitidos)]
     df = df.sort_values(by="Dividend Yield", ascending=False)
     return df
 def tratar_df1():
@@ -95,7 +95,10 @@ def merge_fiis():
     df2 = pd.read_csv("df2.csv")
     merge = pd.merge(df1, df2, on="Papel", how="inner")
     merge.to_csv("merge.csv", index=False)
-
+    merge = pd.read_csv("merge.csv")
+    ordem = ["Papel", "Segmento", "TIPO DE FUNDO", "VAL. PATRIMONIAL P/ COTA", "Cotação", "Dividend Yield", "P/VP", "ÚLTIMO RENDIMENTO", "FFO Yield", "Liquidez", "Valor de Mercado", "Qtd de imóveis", "Cap Rate", "Vacância Média", "VALOR PATRIMONIAL"]
+    merge = merge[ordem]
+    merge.to_csv("merge.csv", index=False)
     return merge
 
 def tratar_df2():
