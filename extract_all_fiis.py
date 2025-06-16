@@ -14,51 +14,105 @@ def get_fiis():
     soup = BeautifulSoup(response.text, 'html.parser')
     table = soup.find('table')
     df = pd.read_html(str(table))[0]
+    df.to_csv("df1.csv", index=False)
+    tratar_df()
     return df
 
-def get_data_com(papel: str):
-    url = f"https://investidor10.com.br/fiis/{papel.lower()}/"
-    response = requests.get(url, headers=headers)
-    soup = BeautifulSoup(response.text, 'html.parser')
-    table = soup.find_all('table', class_="table")
-    #tabela datacom
-    #table = soup.find_all('table', class_="table-balance")
-    df = pd.read_html(str(table))[0]
+def tratar_df():
+    df = pd.read_csv("df1.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
+    df = df.drop(columns=["Preço do m2", "Aluguel por m2"], errors="ignore")
+
+    colunas_percentuais = ["FFO Yield", "Dividend Yield", "Cap Rate", "Vacância Média"]
+    colunas_valores = ["Valor de Mercado", "Liquidez"]
+    colunas_inteiras = ["Qtd de imóveis"]
+    colunas_cotacao = ["Cotação"]
+    colunas_pvp = ["P/VP"]
+
+    for col in colunas_percentuais:
+        df[col] = df[col].astype(str).str.replace("%", "", regex=False).str.replace(",", ".")
+        df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    for col in colunas_valores:
+        df[col] = df[col].astype(str).str.replace(".", "", regex=False).str.replace(",", ".", regex=False)
+    df[col] = pd.to_numeric(df[col], errors="coerce")
+
+    for col in colunas_inteiras:
+        df[col] = pd.to_numeric(df[col], errors="coerce", downcast="integer")
+
+    for col in colunas_cotacao:
+        df[col] = df[col].astype(str).str.replace(r"\D", "", regex=True)  
+        df[col] = df[col].apply(
+            lambda x: float(x.zfill(3)[:-2] + "." + x.zfill(3)[-2:]) if x else None
+        )
+
+    def pvp(x):
+        x = x.strip()
+        if not x.isdigit():
+            return None
+        if len(x) > 2:
+            return float(x[:-2] + "." + x[-2:])
+        else:
+            return float("0." + x)
+
+    for col in colunas_pvp:
+        df[col] = df[col].astype(str).str.replace(r"\D", "", regex=True)
+        df[col] = df[col].apply(pvp)
+
+    df.to_csv("df1_tratado.csv", index=False)
     return df
-
-
-def get_fiis_complement(papel: str):
-    url = f"https://investidor10.com.br/fiis/{papel.lower()}/"
-    response = requests.get(url, headers=headers)
-
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    titulos = [item.text.strip() for item in soup.find_all('span', class_="name")]
-    valores = [item.text.strip() for item in soup.find_all('div', class_="value")]
     
-    dados = dict(zip(titulos, valores))
-    dados["Papel"] = papel
 
-    return dados
+def get_data_com():
+    fiis =pd.read_csv("fiis.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
+    tickers = fiis["Papel"].tolist()
+    todos_os_fiis = []
+    for papel in tickers:
+        print(f"Processando data com de: {papel}")
+        url = f"https://investidor10.com.br/fiis/{papel}/"
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-fiis =pd.read_csv("fiis.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
-#tickers = fiis["Papel"].tolist()
+        table = soup.find_all('table', class_="table")
+        df = pd.read_html(str(table))[0]
+
+        dados_fiis = dict(zip(titulos, valores))
+        dados_fiis["Papel"] = papel
+        todos_os_fiis.append(dados_fiis)
+
+    df = pd.DataFrame(todos_os_fiis)
+    df.to_csv("data_com.csv", index=False)
+    return df
 
 
-#dados_fiis = []
-#for ticker in tickers:
-#    dados = get_fiis_complement(ticker)
-#    if dados:
-#        dados_fiis.append(dados)
+def get_fiis_complement():
+    fiis =pd.read_csv("df1.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
+    tickers = fiis["Papel"].tolist()
+    todos_os_fiis = []
+    for papel in tickers:
+        print(f"Processando complemento de: {papel}")
 
-# Converte para DataFrame e salva
-#df = pd.DataFrame(dados_fiis)
-#df.to_csv("dados_investidor10.csv", index=False)
+        url = f"https://investidor10.com.br/fiis/{papel}/"
+        response = requests.get(url, headers=headers)
+        soup = BeautifulSoup(response.text, 'html.parser')
 
-df2 = pd.read_csv("dados_investidor10.csv")
+        titulos = [item.text.strip() for item in soup.find_all('span', class_="name")]
+        valores = [item.text.strip() for item in soup.find_all('div', class_="value")]
 
-#concat = pd.concat([fiis, df2], ignore_index=True)
-#concat.to_csv("concat.csv", index=False)
+        dados_fiis = dict(zip(titulos, valores))
+        dados_fiis["Papel"] = papel
+        todos_os_fiis.append(dados_fiis)
+    
+    df = pd.DataFrame(todos_os_fiis)
+    df.to_csv("df2.csv", index=False)
 
-merge = pd.merge(fiis, df2, on="Papel", how="inner")
-merge.to_csv("merge.csv", index=False)
+    return df
+
+def merge_fiis():
+    df1 = pd.read_csv("df1.csv")
+    df2 = pd.read_csv("df2.csv")
+    merge = pd.merge(df1, df2, on="Papel", how="inner")
+    merge.to_csv("merge.csv", index=False)
+
+    return merge
+
+get_fiis()
