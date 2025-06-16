@@ -6,7 +6,8 @@ headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 }
 
-
+liquidez_minima = 1_500_000
+pvp = 0.85
 
 def get_fiis():
     url = "https://www.fundamentus.com.br/fii_resultado.php"
@@ -15,10 +16,19 @@ def get_fiis():
     table = soup.find('table')
     df = pd.read_html(str(table))[0]
     df.to_csv("df1.csv", index=False)
-    tratar_df()
+    df = tratar_df1()
+    df.to_csv("df1.csv", index=False)
     return df
 
-def tratar_df():
+def filtrar_fiis(liquidez_minima, pvp):
+    df = pd.read_csv("df1.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
+    segmentos_permitidos = ["Logística", "Shoppings", "Híbrido", "Lajes Corporativas"]
+    df = df[df["Liquidez"] >= liquidez_minima]
+    df = df[df["P/VP"] >= pvp]
+    df = df[df["Segmento"].isin(segmentos_permitidos)]
+    df = df.sort_values(by="Dividend Yield", ascending=False)
+    return df
+def tratar_df1():
     df = pd.read_csv("df1.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
     df = df.drop(columns=["Preço do m2", "Aluguel por m2"], errors="ignore")
 
@@ -57,10 +67,7 @@ def tratar_df():
     for col in colunas_pvp:
         df[col] = df[col].astype(str).str.replace(r"\D", "", regex=True)
         df[col] = df[col].apply(pvp)
-
-    df.to_csv("df1_tratado.csv", index=False)
     return df
-    
 
 def get_data_com():
     fiis =pd.read_csv("fiis.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
@@ -83,9 +90,25 @@ def get_data_com():
     df.to_csv("data_com.csv", index=False)
     return df
 
+def merge_fiis():
+    df1 = filtrar_fiis(liquidez_minima, pvp)
+    df2 = pd.read_csv("df2.csv")
+    merge = pd.merge(df1, df2, on="Papel", how="inner")
+    merge.to_csv("merge.csv", index=False)
+
+    return merge
+
+def tratar_df2():
+    df = pd.read_csv("df2.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
+    
+
+    df = df.drop(columns=["Razão Social", "CNPJ", "PÚBLICO-ALVO", "MANDATO", "SEGMENTO", "PRAZO DE DURAÇÃO", "TIPO DE GESTÃO", "TAXA DE ADMINISTRAÇÃO", "VACÂNCIA", "COTAS EMITIDAS", "NUMERO DE COTISTAS"], errors="ignore")
+    
+    return df
 
 def get_fiis_complement():
-    fiis =pd.read_csv("df1.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
+    #fiis =pd.read_csv("df1_filtro.csv", quotechar='"', sep=',', decimal='.', encoding='utf-8', skipinitialspace=True)
+    fiis = filtrar_fiis(liquidez_minima, pvp)
     tickers = fiis["Papel"].tolist()
     todos_os_fiis = []
     for papel in tickers:
@@ -104,15 +127,15 @@ def get_fiis_complement():
     
     df = pd.DataFrame(todos_os_fiis)
     df.to_csv("df2.csv", index=False)
-
+    df = tratar_df2()
+    df.to_csv("df2.csv", index=False)
+    merge_fiis()
     return df
 
-def merge_fiis():
-    df1 = pd.read_csv("df1.csv")
-    df2 = pd.read_csv("df2.csv")
-    merge = pd.merge(df1, df2, on="Papel", how="inner")
-    merge.to_csv("merge.csv", index=False)
 
-    return merge
+def iniciar():
+    get_fiis()
+    get_fiis_complement()
+    #get_data_com()
 
-get_fiis()
+iniciar()
